@@ -1,0 +1,28 @@
+    def log_returns(targets, risk_free):
+        """
+        Function calculates log returns for each interval within a pandas dataframe
+        :param targets: 
+            dataframe; timeseries price dataframe for instrument.
+        :param risk_free:
+            dataframe; timeseries price dataframe for risk-free rate.
+             
+        :return: 
+            dataframe; log returns for per instrument dataframe.
+        """
+
+        # INITIALIZE FUNCTION
+        import numpy as np
+        import pandas as pd
+
+        # POPULATE INPUTS & PERFORM CALCULATIONS
+        rf_returns = np.log(risk_free) - np.log(risk_free.shift(1))
+        rf_returns = rf_returns.fillna(0)
+        target_returns = np.log(targets) - np.log(targets.shift(1))
+        target_returns = target_returns.fillna(0)
+
+        # REMOVE RISK-FREE RETURNS FROM TARGET RETURNS
+        date_filter = target_returns.index.to_list()
+        rf_returns = rf_returns.iloc[rf_returns.index.isin(date_filter)]
+        target_returns = target_returns - rf_returns.values
+
+        return target_returns
