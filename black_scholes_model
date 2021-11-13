@@ -1,0 +1,101 @@
+import numpy as np
+from scipy.stats import norm
+import pandas as pd
+
+
+def bsm_options_pricing(S, K, q, rF, t_exp, vol):
+    """
+
+    :param S: Current price of the underlying instrument
+    :param K: Strike price of the option
+    :param q: Dividend yield
+    :param rF: Risk-free rate
+    :param t_exp: Time to expiration
+    :param vol: Implied volatility
+    :return:
+        call df: dataframe - containing price and calculated options greeks.
+        put df: dataframe - containing price and calculated options greeks.
+    """
+
+    # CALCULATE SUB-COMPONENTS
+    d1 = (np.log(S / K) + (rF - q + vol ** 2 / 2) * t_exp) / (vol * np.sqrt(t_exp))
+    d2 = d1 - vol * np.sqrt(t_exp)
+
+    mu = ((rF - q) - (vol ** 2)/2) / vol ** 2
+    lam = np.sqrt(mu ** 2 + 2 * rF / vol ** 2)
+    z = np.log(K / S) / (vol * np.sqrt(t_exp)) + lam * vol * np.sqrt(t_exp)
+
+    # CALCULATE OPTION PRICES FOR BOTH CALL & PUT
+    call = S * np.e ** (-q * t_exp) * norm.cdf(d1) - K * np.e ** (-rF * t_exp) * norm.cdf(d2)
+    put = K * np.e ** (-rF * t_exp) * norm.cdf(-d2) - S * np.e ** (-q * t_exp) * norm.cdf(-d1)
+
+    # CALCULATE OPTION GREEKS
+    # CHANGE IN VALUE OF OPTION BASED ON CHANGE IN UNDERLYING ASSET
+    delta_c = np.e ** (-q*t_exp) * norm.cdf(d1)
+    delta_p = np.e ** (-q*t_exp) * (norm.cdf(d1) - 1)
+
+    # MEASURES HOW FAST DELTA CHANGES FOR A CHANGE IN UNDERLYING ASSET
+    gamma = norm.pdf(d1) * np.e ** (-q * t_exp)/(S * vol * np.sqrt(t_exp))
+
+    # MEASURES HOW OPTION PRICE IS IMPACTED BY CHANGES IN VOLATILITY
+    vega = S * np.e ** (-q * t_exp) * norm.pdf(d1) * np.sqrt(t_exp)
+
+    # MEASURES HOW FAST AN OPTION LOSES VALUE AS IT AGES
+    theta_c = -((S * np.e ** (-q * t_exp) * norm.pdf(d1) * vol) / (2 * np.sqrt(t_exp))) \
+             + q * S * np.e ** (-q * t_exp) * norm.cdf(d1) - rF * K * np.e ** (-rF * t_exp) * norm.cdf(d2)
+
+    theta_p = -((S * np.e ** (-q * t_exp) * norm.pdf(d1) * vol) / (2 * np.sqrt(t_exp))) \
+             - q * S * np.e ** (-q * t_exp) * norm.cdf(-d1) + rF * K * np.e ** (-rF * t_exp) * norm.cdf(-d2)
+
+    # MEASURES HOW OPTION PRICE IS IMPACTED BY CHANGE IN INTEREST RATE
+    rho_c = t_exp * K * np.e ** (-rF * t_exp) * norm.cdf(d2)
+    rho_p = - t_exp * K * np.e ** (-rF * t_exp) * norm.cdf(-d2)
+
+    # MEASURES HOW OPTION PRICE IS IMPACTED BY CHANGE IN DIVIDEND YIELD
+    phi_c = - t_exp * S * np.e ** (-q * t_exp) * norm.cdf(d1)
+    phi_p = t_exp * S * np.e ** (-q * t_exp) * norm.cdf(-d1)
+
+    # CALCULATE OPTIONS BETA
+    beta_c = (S / call) * norm.cdf(d1)
+    beta_p = - (S / put) * norm.cdf(-d1)
+
+    # CALCULATE PROBABILITY THAT OPTION WILL EVER EXPIRE IN THE MONEY
+    zeta_c_ever = min((K / S) ** (mu + lam) * norm.cdf(-z) + (K / S) ** (mu - lam) * norm.cdf(
+        -z + 2 * lam * vol * np.sqrt(t_exp)), 1)
+    zeta_p_ever = min((K / S) ** (mu + lam) * norm.cdf(z) + (K / S) ** (mu - lam) * norm.cdf(
+        z - 2 * lam * vol * np.sqrt(t_exp)), 1)
+
+    call_row = {K: {
+        '_price': call,
+        '_type': 'call',
+        'delta': delta_c,
+        'gamma': gamma,
+        'theta': theta_c,
+        'rho': rho_c,
+        'phi': phi_c,
+        'beta': beta_c,
+        'zeta': zeta_c_ever
+    }}
+
+    put_row = {K: {
+        '_price': put,
+        '_type': 'put',
+        'delta': delta_p,
+        'gamma': gamma,
+        'theta': theta_p,
+        'rho': rho_p,
+        'phi': phi_p,
+        'beta': beta_p,
+        'zeta': zeta_p_ever
+    }}
+
+    call_df = pd.DataFrame.from_dict(call_row).transpose()
+    put_df = pd.DataFrame.from_dict(put_row).transpose()
+
+    return call_df, put_df
+
+
+call, put = bsm_options_pricing(22.5, 25, 0.01, 0.02, 0.25, 0.35)
+
+print(call)
+print(put)
